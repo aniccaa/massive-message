@@ -40,15 +40,7 @@ func initMessageQueue() error {
 		return err
 	}
 
-	if err := channel.ExchangeDeclare(
-		sdk.TrapExchangeName, // name
-		"topic",              // type
-		true,                 // duarable
-		false,                // auto-deleted
-		false,                // internal,
-		false,                // no-wait,
-		nil,                  // args
-	); err != nil {
+	if err := channel.ExchangeDeclare(sdk.TrapExchangeName, "topic", true, false, false, false, nil); err != nil {
 		log.WithFields(log.Fields{"err": err}).Error("[Receiver] Init MQ service failed, create exchange failed.")
 	}
 	log.WithFields(log.Fields{"exchange": sdk.TrapExchangeName, "type": "topic"}).Info("[Receiver] MQ service initialized.")
@@ -80,7 +72,8 @@ func handler(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
 		return
 	}
 	if err := channel.Publish(sdk.TrapExchangeName, "Trap.New", false, false, amqp.Publishing{
-		ContentType: "text/plain",
+		DeliveryMode: amqp.Persistent,
+		ContentType: "application/octet-stream",
 		Body:        network.Bytes(),
 	}); err != nil {
 		log.WithFields(log.Fields{"err": err}).Error("[Receiver] Publish SNMP trap message failed.")

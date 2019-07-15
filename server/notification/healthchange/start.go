@@ -7,6 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	notificationSDK "massive-message/notification/sdk"
+	"massive-message/server/repository"
+	"strings"
 )
 
 var (
@@ -62,6 +64,7 @@ func Start() {
 	log.WithFields(log.Fields{"Name": q.Name}).Info("[Server-HealthChange] Start message process, event queue bind.")
 
 	// Get the delivery channel.
+	// args: queue, consumerString, autoAck, exclusive, noLocal, noWait, args
 	delivery, err := channel.Consume(q.Name, "server-consumer", false, false, false, false, nil)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Warn("[Server-HealthChange] Start message process failed, consume failed.")
@@ -70,7 +73,7 @@ func Start() {
 	// Keep getting the payload from the channel.
 	for each := range delivery {
 		handler(&each)
-		each.Ack(true)
+		each.Ack(false)
 	}
 }
 
@@ -82,5 +85,9 @@ func handler(delivery *amqp.Delivery) {
 		log.WithFields(log.Fields{"error": err}).Warn("[Server-HealthChange] Decode payload failed.")
 		return
 	}
-	log.WithFields(log.Fields{"url": notification.URL, "warnings": notification.Warnings, "criticals": notification.Criticals}).Info("[Server-HealthChange] Received notification")
+	ids := strings.Split(notification.URL, "/")
+	if len(ids) == 5 && ids[3] == "servers" {
+		repository.UpdateServerHealth(ids[4], notification.Warnings, notification.Criticals)
+		log.WithFields(log.Fields{"id": ids[4], "warnings": notification.Warnings, "criticals": notification.Criticals}).Info("[Server-HealthChange] Received notification")
+	}
 }
